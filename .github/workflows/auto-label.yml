@@ -1,0 +1,35 @@
+
+name: Issue Auto-Labeler
+on:
+  issues:
+    types: [opened]
+
+jobs:
+  label-issues:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Add labels based on keywords
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const issueTitle = (context.issue.title || '').toLowerCase();
+            const issueBody = (context.issue.body || '').toLowerCase();
+            const labelsToAdd = [];
+
+            if (issueTitle.includes('error') || issueBody.includes('error')) {
+              labelsToAdd.push('bug');
+            }
+            if (issueTitle.includes('add') || issueBody.includes('add')) {
+              labelsToAdd.push('feature');
+            }
+            
+            if (labelsToAdd.length > 0) {
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                labels: labelsToAdd
+              });
+            }
