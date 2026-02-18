@@ -1,35 +1,48 @@
 
-name: Issue Auto-Labeler
+name: Auto-label issues
+
 on:
   issues:
     types: [opened]
 
+permissions:
+  issues: write
+
 jobs:
   label-issues:
     runs-on: ubuntu-latest
-    permissions:
-      issues: write
     steps:
-      - name: Add labels based on keywords
-        uses: actions/github-script@v6
+      - uses: actions/github-script@v6
         with:
           script: |
-            const issueTitle = (context.issue.title || '').toLowerCase();
-            const issueBody = (context.issue.body || '').toLowerCase();
+            const issueTitle = context.payload.issue.title.toLowerCase();
             const labelsToAdd = [];
-
-            if (issueTitle.includes('error') || issueBody.includes('error')) {
+            if (issueTitle.includes('error')) {
               labelsToAdd.push('bug');
             }
-            if (issueTitle.includes('add') || issueBody.includes('add')) {
+            if (issueTitle.includes('add')) {
               labelsToAdd.push('feature');
             }
-            
             if (labelsToAdd.length > 0) {
-              await github.rest.issues.addLabels({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: context.issue.number,
-                labels: labelsToAdd
-              });
+              try {
+                await github.rest.issues.addLabels({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: context.issue.number,
+                  labels: labelsToAdd
+                });
+              } catch (error) {
+                if (error.message.includes("Label does not exist")) {
+                    console.log(`One or more labels do not exist. Please create them in your repository: ${labelsToAdd.join(', ')}`);
+                    // Optionally, create a comment on the issue to inform the user
+                    await github.rest.issues.createComment({
+                        owner: context.repo.owner,
+                        repo: context.repo.repo,
+                        issue_number: context.issue.number,
+                        body: `I tried to add the following labels but they don't exist in the repository: ${labelsToAdd.join(', ')}. Please create them.`
+                    });
+                } else {
+                  throw error;
+                }
+              }
             }
